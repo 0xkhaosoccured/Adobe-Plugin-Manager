@@ -2,6 +2,7 @@
 
 namespace PluginManager
 {
+      // Основной прототип класса для плагина, масштабируемый (слава богу)
       sealed class Plugin
       {
             private static int _count = 0;
@@ -29,6 +30,7 @@ namespace PluginManager
 
                   public static string ProgramFilesAdobeRoot = "C:\\Program Files\\Adobe";
                   
+                  // Собирает в список все существующие директории с плагинами
                   public static List<AeFolderItem> Find()   
                   {
                         List<AeFolderItem> foundFolders = [];
@@ -60,7 +62,8 @@ namespace PluginManager
                         
                         return foundFolders;
                   }
-
+                  
+                  // Собирает в список все .ffx файлы
                   public static List<AeFileItem> CollectItems()
                   {
                         List<AeFileItem> items = [];
@@ -84,6 +87,7 @@ namespace PluginManager
                         return items;
                   }
 
+                  // Собирает в словарь все категории с файлами в них
                   public static Dictionary<string, List<AeFileItem>> Categorize()
                   { 
                         Dictionary<string, List<AeFileItem>> categories = new Dictionary<string, List<AeFileItem>>();
