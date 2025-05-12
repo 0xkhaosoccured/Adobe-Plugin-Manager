@@ -6,7 +6,6 @@ namespace PluginManager
       sealed class Plugin
       {
             private static int _count = 0;
-            
             public static int Count => _count;
             public string Name { get; }
             public string Description { get; }
@@ -40,7 +39,11 @@ namespace PluginManager
                               if (Directory.Exists(System.IO.Path.Combine(ProgramFilesAdobeRoot, "Common",
                                         "Plug-ins", "7.0", "MediaCore")))
                               {
-                                    foundFolders.Add(new AeFolderItem(System.IO.Path.Combine(ProgramFilesAdobeRoot, "Common", "Plug-ins", "7.0", "MediaCore")));
+                                    foundFolders.Add(new AeFolderItem(System.IO.Path.Combine(ProgramFilesAdobeRoot, 
+                                          "Common", 
+                                          "Plug-ins",
+                                          "7.0",
+                                          "MediaCore")));
                               }
                               try
                               {
