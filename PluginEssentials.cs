@@ -1,136 +1,232 @@
-﻿using System.Text.RegularExpressions;
+﻿using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Text.RegularExpressions;
 
 namespace PluginManager
 {
-      // Основной прототип класса для плагина, масштабируемый (слава богу)
-      sealed class Plugin
-      {
-            private static int _count = 0;
-            public static int Count => _count;
-            public string Name { get; }
-            public string Description { get; }
-            public string Path { get; }
-            public string ImagePath { get; }
 
-            public Plugin(string name, string path, string description, string imagePath)
+    public interface IFileSystem
+    {
+        bool DirectoryExists(string path);
+        string[] GetDirectories(string path);
+        string[] GetDirectories(string path, string searchPattern);
+        string[] GetFiles(string path, string searchPattern, SearchOption searchOption);
+        string GetFileName(string path);
+        string Combine(string path1, string path2);
+    }
+
+    public class DefaultFileSystem : IFileSystem
+    {
+        public bool DirectoryExists(string path) => Directory.Exists(path);
+        public string[] GetDirectories(string path) => Directory.GetDirectories(path);
+        public string[] GetDirectories(string path, string searchPattern) => Directory.GetDirectories(path, searchPattern);
+        public string[] GetFiles(string path, string searchPattern, SearchOption searchOption) => Directory.GetFiles(path, searchPattern, searchOption);
+        public string GetFileName(string path) => Path.GetFileName(path);
+        public string Combine(string path1, string path2) => Path.Combine(path1, path2);
+    }
+
+    public class AeFinderOptions
+    {
+        public string ProgramFilesAdobeRoot { get; set; } = "C:\\Program Files\\Adobe";
+        public string AeDirSearchPattern { get; set; } = "Adobe After Effects*";
+        public string AeVersionRegexPattern { get; set; } = @"^Adobe After Effects \d{4}$";
+        public string CommonPluginsRelativePath { get; set; } = Path.Combine("Common", "Plug-ins", "7.0", "MediaCore");
+        public string FfxFilePattern { get; set; } = "*.ffx";
+    }
+
+    sealed class Plugin
+    {
+        private static int _count = 0;
+        public static int Count => _count;
+        public string Name { get; }
+        public string Description { get; }
+        public string Path { get; }
+        public string ImagePath { get; }
+
+        public Plugin(string name, string path, string description, string imagePath)
+        {
+            Name = name ?? throw new ArgumentNullException(nameof(name));
+            Path = path ?? throw new ArgumentNullException(nameof(path));
+            ImagePath = imagePath ?? throw new ArgumentNullException(nameof(imagePath));
+            Description = description ?? throw new ArgumentNullException(nameof(description));
+            _count++;
+        }
+    }
+
+    namespace AeFolders
+    {
+        public class FolderFinder
+        {
+            private readonly IFileSystem _fileSystem;
+            private readonly AeFinderOptions _options;
+
+            public FolderFinder(IFileSystem fileSystem, AeFinderOptions options)
             {
-                  Name = name ?? throw new ArgumentNullException(nameof(name));
-                  Path = path ?? throw new ArgumentNullException(nameof(path));
-                  ImagePath = imagePath ?? throw new ArgumentNullException(nameof(imagePath));
-                  Description = description ?? throw new ArgumentNullException(nameof(description));
-                  _count++;
+                _fileSystem = fileSystem ?? throw new ArgumentNullException(nameof(fileSystem));
+                _options = options ?? throw new ArgumentNullException(nameof(options));
             }
-      }
 
-      namespace AeFolders
-      {
-            public static class FolderFinder
+            // Собирает в список все существующие директории с плагинами
+            public List<AeFolderItem> Find()
             {
+                List<AeFolderItem> foundFolders = [];
+                string commonPluginsPath = _fileSystem.Combine(_options.ProgramFilesAdobeRoot, _options.CommonPluginsRelativePath);
 
-                  public static string ProgramFilesAdobeRoot = "C:\\Program Files\\Adobe";
-                  
-                  // Собирает в список все существующие директории с плагинами
-                  public static List<AeFolderItem> Find()   
-                  {
-                        List<AeFolderItem> foundFolders = [];
-                        string pattern = "Adobe After Effects*";
-                        if (Directory.Exists(ProgramFilesAdobeRoot))
+                if (_fileSystem.DirectoryExists(_options.ProgramFilesAdobeRoot))
+                {
+                    if (_fileSystem.DirectoryExists(commonPluginsPath))
+                    {
+                        foundFolders.Add(new AeFolderItem(commonPluginsPath));
+                    }
+
+                    try
+                    {
+                        string[] aeDirs = _fileSystem.GetDirectories(_options.ProgramFilesAdobeRoot, _options.AeDirSearchPattern);
+                        foreach (string aeDir in aeDirs)
                         {
-                              if (Directory.Exists(System.IO.Path.Combine(ProgramFilesAdobeRoot, "Common",
-                                        "Plug-ins", "7.0", "MediaCore")))
-                              {
-                                    foundFolders.Add(new AeFolderItem(System.IO.Path.Combine(ProgramFilesAdobeRoot, 
-                                          "Common", 
-                                          "Plug-ins",
-                                          "7.0",
-                                          "MediaCore")));
-                              }
-                              try
-                              {
-                                    string[] aeDirs = Directory.GetDirectories(ProgramFilesAdobeRoot, pattern);
-                                    foreach (string aeDir in aeDirs)
+                            string dirName = _fileSystem.GetFileName(aeDir);
+                            if (Regex.IsMatch(dirName, _options.AeVersionRegexPattern))
+                            {
+                                foundFolders.Add(new AeFolderItem(aeDir));
+                            }
+                        }
+                    }
+                    catch (Exception e)
+                    {
+                        Console.WriteLine(e.Message);
+                    }
+                }
+
+                return foundFolders;
+            }
+
+            // Собирает в список все .ffx файлы
+            public List<AeFileItem> CollectItems()
+            {
+                List<AeFileItem> items = [];
+                List<AeFolderItem> foundFolders = Find();
+
+                if (foundFolders.Any())
+                {
+                    foreach (var folder in foundFolders)
+                    {
+                        if (_fileSystem.DirectoryExists(folder.Path))
+                        {
+                            try
+                            {
+                                string[] rawFoundAeFiles = _fileSystem.GetFiles(folder.Path, _options.FfxFilePattern, SearchOption.AllDirectories);
+                                List<AeFileItem> finalAeFileItems = rawFoundAeFiles
+                                    .Select(filePath => new AeFileItem(filePath))
+                                    .ToList();
+                                items.AddRange(finalAeFileItems);
+                            }
+                            catch (Exception e)
+                            {
+                                Console.WriteLine(e.Message);
+                            }
+                        }
+                    }
+                }
+
+                return items;
+            }
+
+            // Собирает в словарь все категории с файлами в них
+            public Dictionary<string, List<AeFileItem>> Categorize()
+            {
+                Dictionary<string, List<AeFileItem>> categories = new Dictionary<string, List<AeFileItem>>();
+                List<AeFolderItem> foundFolders = Find();
+
+                if (foundFolders.Any())
+                {
+                    foreach (var folder in foundFolders)
+                    {
+                        if (_fileSystem.DirectoryExists(folder.Path))
+                        {
+                            try
+                            {
+                                string[] categoriesDirs = _fileSystem.GetDirectories(folder.Path);
+
+                                foreach (string categoryDir in categoriesDirs)
+                                {
+                                    string categoryName = _fileSystem.GetFileName(categoryDir);
+                                    List<AeFileItem> categoryFiles = new List<AeFileItem>();
+
+                                    try
                                     {
-                                          string dirName = Path.GetFileName(aeDir);
-                                          if (Regex.IsMatch(dirName, @"^Adobe After Effects \d{4}$"))
-                                          {
-                                                foundFolders.Add(new AeFolderItem(aeDir));
-                                          }
+                                        string[] files = _fileSystem.GetFiles(categoryDir, _options.FfxFilePattern, SearchOption.TopDirectoryOnly);
+
+                                        foreach (string file in files)
+                                        {
+                                            categoryFiles.Add(new AeFileItem(file));
+                                        }
+
+                                        if (categoryFiles.Any())
+                                        {
+                                            if (categories.ContainsKey(categoryName))
+                                            {
+                                                categories[categoryName].AddRange(categoryFiles);
+                                            }
+                                            else
+                                            {
+                                                categories.Add(categoryName, categoryFiles);
+                                            }
+                                        }
                                     }
-                              }
-                              catch (Exception e)
-                              {
+                                    catch (Exception e)
+                                    {
+                                        Console.WriteLine(e.Message);
+                                    }
+                                }
+
+                                try
+                                {
+                                     string[] rootFiles = _fileSystem.GetFiles(folder.Path, _options.FfxFilePattern, SearchOption.TopDirectoryOnly);
+                                     if (rootFiles.Any())
+                                     {
+                                         string rootCategoryName = "Uncategorized";
+                                         List<AeFileItem> rootCategoryFiles = rootFiles
+                                            .Select(filePath => new AeFileItem(filePath))
+                                            .ToList();
+
+                                         if (categories.ContainsKey(rootCategoryName))
+                                         {
+                                             categories[rootCategoryName].AddRange(rootCategoryFiles);
+                                         }
+                                         else
+                                         {
+                                             categories.Add(rootCategoryName, rootCategoryFiles);
+                                         }
+                                     }
+                                }
+                                catch (Exception e)
+                                {
                                     Console.WriteLine(e.Message);
-                              }
+                                }
+                            }
+                            catch (Exception e)
+                            {
+                                Console.WriteLine(e.Message);
+                            }
                         }
-                        
-                        return foundFolders;
-                  }
-                  
-                  // Собирает в список все .ffx файлы
-                  public static List<AeFileItem> CollectItems()
-                  {
-                        List<AeFileItem> items = [];
-                        List<AeFolderItem> foundFolders = Find();
-                        if (foundFolders.Any())
-                        {
-                              foreach (var folder in foundFolders)
-                              {
-                                    if (Directory.Exists(folder.Path))
-                                    {
-                                          string pattern = "*.ffx";
-                                          string[] rawFoundAeFiles = Directory.GetFiles(folder.Path, pattern, SearchOption.AllDirectories);
-                                          List<AeFileItem> finalAeFileItems = rawFoundAeFiles
-                                                .Select(filePath => new AeFileItem(filePath))
-                                                .ToList();
-                                          items.AddRange(finalAeFileItems);
-                                    }
-                              }
-                        }
+                    }
+                }
 
-                        return items;
-                  }
-
-                  // Собирает в словарь все категории с файлами в них
-                  public static Dictionary<string, List<AeFileItem>> Categorize()
-                  { 
-                        Dictionary<string, List<AeFileItem>> categories = new Dictionary<string, List<AeFileItem>>();
-                        List<AeFolderItem> foundFolders = Find();
-                        if (foundFolders.Any())
-                        {
-                              foreach (var folder in foundFolders)
-                              {
-                                    string[] categoriesDirs = Directory.GetDirectories(folder.Path);
-                                    foreach (string category in categoriesDirs)
-                                    {
-                                          List<AeFileItem> categoryFiles = new List<AeFileItem>();
-                                          string[] files = Directory.GetFiles(category, "*.ffx");
-                                          foreach (string file in files)
-                                          {
-                                                categoryFiles.Add(new AeFileItem(file));
-                                          }
-
-                                          if (categories.ContainsKey(category)) categories[category].AddRange(categoryFiles);
-                                          else
-                                          {
-                                                categories.Add(category, categoryFiles);
-                                          }
-                                    }
-                              }
-                        }
-  
-                        return categories;
-                  }
-                  
-                  public class AeFolderItem(string path)
-                  {
-                        public string Path { get; } = path ?? throw new ArgumentNullException(nameof(path));
-                  }
-
-                  public class AeFileItem(string path)
-                  {
-                        public string Name { get; } = System.IO.Path.GetFileName(path);
-                        public string Path { get; } = path ?? throw new ArgumentNullException(nameof(path));
-                  }
+                return categories;
             }
-      }
+
+            public class AeFolderItem(string path)
+            {
+                public string Path { get; } = path ?? throw new ArgumentNullException(nameof(path));
+            }
+
+            public class AeFileItem(string path)
+            {
+                public string Name { get; } = System.IO.Path.GetFileName(path);
+                public string Path { get; } = path ?? throw new ArgumentNullException(nameof(path));
+            }
+        }
+    }
 }
