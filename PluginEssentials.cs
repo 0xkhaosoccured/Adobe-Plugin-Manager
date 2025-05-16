@@ -28,7 +28,7 @@ namespace PluginManager
         string Combine(string path1, string path2);
         void RemoveFile(string path);
         void OpenDirectory(string path);
-    }
+    }   
 
     public class DefaultFileSystem : IFileSystem
     {
@@ -45,9 +45,10 @@ namespace PluginManager
     public class AeFinderOptions
     {
         public string ProgramFilesAdobeRoot { get; set; } = "C:\\Program Files\\Adobe";
+        public string PluginsRelativeRoot { get; set; } = Path.Combine("C:\\Program Files\\Adobe", "Plug-ins");
         public string AeDirSearchPattern { get; set; } = "Adobe After Effects*";
         public string AeVersionRegexPattern { get; set; } = @"^Adobe After Effects \d{4}$";
-        public string CommonPluginsRelativePath { get; set; } = Path.Combine("C:\\Program Files\\Adobe", "Common", "Plug-ins", "7.0", "MediaCore");
+        public string CommonPluginsRelativePath { get; set; } = Path.Combine("Common", "Plug-ins", "7.0", "MediaCore");
         public string FfxFilePattern { get; set; } = "*.ffx";
     }
 
@@ -120,6 +121,11 @@ namespace PluginManager
             /// <returns> Список с путями к каждой папке </returns>
             public List<AeFolderItem> Find()
             {
+                Console.WriteLine($"Program Files Adobe Root: {_options.ProgramFilesAdobeRoot}");
+                Console.WriteLine($"Common Plugins Path to check: {_options.CommonPluginsRelativePath}");
+                Console.WriteLine($"Ae Dir Search Pattern: {_options.AeDirSearchPattern}");
+                Console.WriteLine($"Ae Version Regex Pattern: {_options.AeVersionRegexPattern}");
+
                 List<AeFolderItem> foundFolders = [];
                 string commonPluginsPath = _fileSystem.Combine(_options.ProgramFilesAdobeRoot, _options.CommonPluginsRelativePath);
 
@@ -133,6 +139,20 @@ namespace PluginManager
                     try
                     {
                         string[] aeDirs = _fileSystem.GetDirectories(_options.ProgramFilesAdobeRoot, _options.AeDirSearchPattern);
+
+                        Console.WriteLine($"Found directories matching pattern '{_options.AeDirSearchPattern}' in '{_options.ProgramFilesAdobeRoot}':");
+                        if (aeDirs.Length == 0)
+                        {
+                             Console.WriteLine("No directory found");
+                        }
+                        else
+                        {
+                            foreach (string rawAeDir in aeDirs)
+                            {
+                                Console.WriteLine($" Raw result {rawAeDir}");
+                            }
+                        }
+
                         foreach (string aeDir in aeDirs)
                         {
                             string dirName = _fileSystem.GetFileName(aeDir);
@@ -140,13 +160,34 @@ namespace PluginManager
                             {
                                 foundFolders.Add(new AeFolderItem(aeDir));
                             }
+                             else
+                             {
+                                 Console.WriteLine("Regex is not matched");
+                             }
                         }
                     }
                     catch (Exception e)
                     {
-                        Console.WriteLine(e.Message);
+                        Console.WriteLine($"Error: {e.Message}"); 
                     }
                 }
+                 else
+                 {
+                     Console.WriteLine($"Adobe Folder '{_options.ProgramFilesAdobeRoot}' not found");
+                 }
+                
+                 if (foundFolders.Any())
+                 {
+                     foreach(var folder in foundFolders)
+                     {
+                         Console.WriteLine($"  - {folder.Path}");
+                     }
+                 }
+                 else
+                 {
+                     Console.WriteLine("List is empty");
+                 }
+
 
                 return foundFolders;
             }
@@ -189,54 +230,71 @@ namespace PluginManager
             /// На основе папок составляет иерархию категорий.
             /// </summary>
             /// <returns> Словарь ключ-значение с папкой и всеми её элементами</returns>
-            /// 
             public Dictionary<string, List<AeFileItem>> Categorize()
             {
                 Dictionary<string, List<AeFileItem>> categories = new Dictionary<string, List<AeFileItem>>();
                 List<AeFolderItem> foundFolders = Find();
-
+                
                 if (foundFolders.Any())
                 {
                     foreach (var folder in foundFolders)
                     {
-                        if (_fileSystem.DirectoryExists(folder.Path))
+                        if (_fileSystem.DirectoryExists(folder.Path)) 
                         {
                             try
                             {
                                 string[] categoriesDirs = _fileSystem.GetDirectories(folder.Path);
+                                if (categoriesDirs.Length == 0)
+                                {
+                                     Console.WriteLine("Underfolders is not found");
+                                }
+                                else
+                                {
+                                    foreach(var catDirRaw in categoriesDirs)
+                                    {
+                                        Console.WriteLine($"    - {catDirRaw}");
+                                    }
+                                }
+
 
                                 foreach (string categoryDir in categoriesDirs)
                                 {
                                     string categoryName = _fileSystem.GetFileName(categoryDir);
                                     List<AeFileItem> categoryFiles = new List<AeFileItem>();
-
                                     try
                                     {
                                         string[] files = _fileSystem.GetFiles(categoryDir, _options.FfxFilePattern, SearchOption.TopDirectoryOnly);
 
-                                        foreach (string file in files)
+                                        if (files.Length == 0)
                                         {
-                                            categoryFiles.Add(new AeFileItem(file));
+                                            Console.WriteLine("Files not found");
                                         }
-
-                                        if (categoryFiles.Any())
+                                        else
                                         {
-                                            if (categories.ContainsKey(categoryName))
+                                            foreach (string file in files)
                                             {
-                                                categories[categoryName].AddRange(categoryFiles);
+                                                categoryFiles.Add(new AeFileItem(file));
                                             }
-                                            else
+
+                                            if (categoryFiles.Any())
                                             {
-                                                categories.Add(categoryName, categoryFiles);
+                                                if (categories.ContainsKey(categoryName))
+                                                {
+                                                    categories[categoryName].AddRange(categoryFiles);
+                                                }
+                                                else
+                                                {
+                                                    categories.Add(categoryName, categoryFiles);
+                                                }
                                             }
                                         }
                                     }
                                     catch (Exception e)
                                     {
-                                        Console.WriteLine(e.Message);
+                                        Console.WriteLine($" '{categoryDir}': {e.Message}");
                                     }
                                 }
-
+                                
                                 try
                                 {
                                      string[] rootFiles = _fileSystem.GetFiles(folder.Path, _options.FfxFilePattern, SearchOption.TopDirectoryOnly);
@@ -246,6 +304,12 @@ namespace PluginManager
                                          List<AeFileItem> rootCategoryFiles = rootFiles
                                             .Select(filePath => new AeFileItem(filePath))
                                             .ToList();
+                                         
+                                          foreach(var rootFile in rootCategoryFiles)
+                                          {
+                                              Console.WriteLine($"      - {rootFile.Path}");
+                                          }
+
 
                                          if (categories.ContainsKey(rootCategoryName))
                                          {
@@ -256,15 +320,19 @@ namespace PluginManager
                                              categories.Add(rootCategoryName, rootCategoryFiles);
                                          }
                                      }
+                                     else
+                                     {
+                                         Console.WriteLine("Uncategorized files not found");
+                                     }
                                 }
                                 catch (Exception e)
                                 {
-                                    Console.WriteLine(e.Message);
+                                    Console.WriteLine($"'{folder.Path}': {e.Message}"); 
                                 }
                             }
                             catch (Exception e)
                             {
-                                Console.WriteLine(e.Message);
+                                Console.WriteLine($"Error '{folder.Path}': {e.Message}");
                             }
                         }
                     }

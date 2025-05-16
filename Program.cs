@@ -7,30 +7,27 @@ namespace PluginManager
       {
             static void Main(string[] args)
             {
-                  AeFolders.FolderFinder filemanipulation = new FolderFinder();
-                  NotificationSystem notificationSystem = new NotificationSystem();
-                  
-                  List<FolderFinder.AeFolderItem> folders = filemanipulation.Find();
-                  if (folders.Any())
+
+                  AeFolders.FolderFinder folderFinder = new AeFolders.FolderFinder();
+                  Dictionary<string, List<FolderFinder.AeFileItem>> categories = folderFinder.Categorize();
+                  Console.WriteLine("Founded categories for .ffx:");
+
+                  if (categories.Any())
                   {
-                        foreach (var folder in folders)
-                        {     
-                              notificationSystem.Message(folder.Path);
+                        foreach (var category in categories)
+                        {
+                              Console.WriteLine($"Category: {category.Key} ({category.Value.Count} files)");
+                              foreach (var fileItem in category.Value)
+                              {
+                                  Console.WriteLine($"  - {fileItem.Name}");
+                              }
                         }
                   }
-                  
-                  List<FolderFinder.AeFileItem> files = filemanipulation.CollectItems();
-                  foreach (var file in files)
+                  else
                   {
-                        Console.Write(file.Path);
-                        Console.Write(file.Name);
+                        Console.WriteLine("Categories is not found");
                   }
                   
-                  Dictionary<string,List<FolderFinder.AeFileItem>> categories = filemanipulation.Categorize();
-                  foreach (var category in categories)
-                  {
-                        Console.WriteLine(category.Key);
-                  }
             }
       }
 }
