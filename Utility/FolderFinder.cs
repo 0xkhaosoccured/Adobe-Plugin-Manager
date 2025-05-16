@@ -17,10 +17,9 @@ public class FolderFinder
     public FolderFinder() : this(new DefaultFileSystem(), new AeFinderOptions(), new NotificationSystem())
     {
     }
-
-
+    
     public List<string> FindPluginRootFolders()
-    {
+    {   
         _notifier.Message($"Program Files Adobe Root: {_options.ProgramFilesAdobeRoot}");
         _notifier.Message($"Common Plugins Path to check: {_options.CommonPluginsRelativePath}");
         _notifier.Message($"Ae Dir Search Pattern: {_options.AeDirSearchPattern}");
@@ -205,7 +204,7 @@ public class FolderFinder
                     List<Plugin> categoryFiles = new List<Plugin>();
                     try
                     {
-                        string[] files = _fileSystem.GetFiles(categoryDir, _options.AexFilePattern, SearchOption.TopDirectoryOnly);
+                        string[] files = _fileSystem.GetFiles(categoryDir, _options.AexFilePattern, SearchOption.AllDirectories);
 
                         if (files.Length == 0)
                         {
