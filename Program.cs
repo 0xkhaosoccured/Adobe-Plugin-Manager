@@ -7,23 +7,26 @@ namespace PluginManager
       {
             static void Main(string[] args)
             {
-                  List<FolderFinder.AeFolderItem> folders = AeFolders.FolderFinder.Find();
+                  AeFolders.FolderFinder filemanipulation = new FolderFinder();
+                  NotificationSystem notificationSystem = new NotificationSystem();
+                  
+                  List<FolderFinder.AeFolderItem> folders = filemanipulation.Find();
                   if (folders.Any())
                   {
                         foreach (var folder in folders)
-                        {
-                              Console.WriteLine(folder.Path);
+                        {     
+                              notificationSystem.Message(folder.Path);
                         }
                   }
                   
-                  List<FolderFinder.AeFileItem> files = AeFolders.FolderFinder.CollectItems();
+                  List<FolderFinder.AeFileItem> files = filemanipulation.CollectItems();
                   foreach (var file in files)
                   {
                         Console.Write(file.Path);
                         Console.Write(file.Name);
                   }
                   
-                  Dictionary<string,List<FolderFinder.AeFileItem>> categories = AeFolders.FolderFinder.Categorize();
+                  Dictionary<string,List<FolderFinder.AeFileItem>> categories = filemanipulation.Categorize();
                   foreach (var category in categories)
                   {
                         Console.WriteLine(category.Key);

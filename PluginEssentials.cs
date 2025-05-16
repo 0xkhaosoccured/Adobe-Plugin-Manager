@@ -108,13 +108,16 @@ namespace PluginManager
             private readonly IFileSystem _fileSystem;
             private readonly AeFinderOptions _options;
 
-            public FolderFinder(IFileSystem fileSystem, AeFinderOptions options)
+            public FolderFinder()
             {
-                _fileSystem = fileSystem ?? throw new ArgumentNullException(nameof(fileSystem));
-                _options = options ?? throw new ArgumentNullException(nameof(options));
+                _fileSystem = new DefaultFileSystem() ?? throw new Exception();
+                _options = new AeFinderOptions() ?? throw new Exception();
             }
 
-            // Собирает в список все существующие директории с плагинами
+            /// <summary>
+            /// Поиск всех существующих папок и подпапок для адобовского AE
+            /// </summary>
+            /// <returns> Список с путями к каждой папке </returns>
             public List<AeFolderItem> Find()
             {
                 List<AeFolderItem> foundFolders = [];
@@ -148,7 +151,10 @@ namespace PluginManager
                 return foundFolders;
             }
 
-            // Собирает в список все .ffx файлы
+            /// <summary>
+            /// Получение всех .ffx плагинов внутри адобовских папок в C:/Program Files/Adobe
+            /// </summary>
+            /// <returns> Список с путями к каждому файлу </returns>
             public List<AeFileItem> CollectItems()
             {
                 List<AeFileItem> items = [];
@@ -178,8 +184,12 @@ namespace PluginManager
 
                 return items;
             }
-
-            // Собирает в словарь все категории с файлами в них
+            
+            /// <summary>
+            /// На основе папок составляет иерархию категорий.
+            /// </summary>
+            /// <returns> Словарь ключ-значение с папкой и всеми её элементами</returns>
+            /// 
             public Dictionary<string, List<AeFileItem>> Categorize()
             {
                 Dictionary<string, List<AeFileItem>> categories = new Dictionary<string, List<AeFileItem>>();
