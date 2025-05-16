@@ -1,36 +1,52 @@
 ﻿using System;
-using PluginManager.AeFolders;
+using System.Collections.Generic;
+using System.Linq;
+using PluginManager;
 
-namespace PluginManager
+
+class Program
 {
-      class Program
+      static void Main(string[] args)
       {
-            static void Main(string[] args)
+            FolderFinder folderFinder = new FolderFinder();
+
+            Console.WriteLine("Starting plugin categorization...");
+
+            try
             {
+                  Dictionary<string, List<Plugin>> categories = folderFinder.CategorizePlugins();
 
-                  AeFolders.FolderFinder folderFinder = new AeFolders.FolderFinder();
-                  Dictionary<string, List<FolderFinder.AeFileItem>> categories = folderFinder.Categorize();
-                  Console.WriteLine("Founded categories for .ffx:");
+                  Console.WriteLine("\n--- Founded categories and plugins ---");
 
-                  if (categories.Any())
+                  if (categories != null && categories.Any())
                   {
                         foreach (var category in categories)
                         {
-                              Console.WriteLine($"Category: {category.Key} ({category.Value.Count} files)");
-                              foreach (var fileItem in category.Value)
+                              Console.WriteLine($"Category: {category.Key} ({category.Value.Count} plugins)");
+                              if (category.Value.Any())
                               {
-                                  Console.WriteLine($"  - {fileItem.Name}");
+                                    foreach (var plugin in category.Value)
+                                    {
+                                          Console.WriteLine($"  - {plugin.Name} ({plugin.Path})");
+                                    }
                               }
+                              else
+                              {
+                                    Console.WriteLine("  (No plugins in this category)");
+                              }
+                              Console.WriteLine();
                         }
                   }
                   else
                   {
-                        Console.WriteLine("Categories is not found");
+                        Console.WriteLine("No categories or plugins were found.");
                   }
-                  
             }
+            catch (Exception ex)
+            {
+                  Console.WriteLine($"An unexpected error occurred: {ex.Message}");
+            }
+
+            Console.WriteLine("--- Categorization process finished ---");
       }
 }
-
-
-
