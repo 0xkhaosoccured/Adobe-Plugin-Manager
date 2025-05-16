@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
@@ -7,6 +8,16 @@ using System.Text.RegularExpressions;
 namespace PluginManager
 {
 
+    public interface INotificationSystem
+    {
+        void Message(string message);
+    }
+
+    public class NotificationSystem : INotificationSystem
+    {
+        public void Message(string message) => Console.WriteLine(message);
+    }
+    
     public interface IFileSystem
     {
         bool DirectoryExists(string path);
@@ -15,6 +26,8 @@ namespace PluginManager
         string[] GetFiles(string path, string searchPattern, SearchOption searchOption);
         string GetFileName(string path);
         string Combine(string path1, string path2);
+        void RemoveFile(string path);
+        void OpenDirectory(string path);
     }
 
     public class DefaultFileSystem : IFileSystem
@@ -25,6 +38,8 @@ namespace PluginManager
         public string[] GetFiles(string path, string searchPattern, SearchOption searchOption) => Directory.GetFiles(path, searchPattern, searchOption);
         public string GetFileName(string path) => Path.GetFileName(path);
         public string Combine(string path1, string path2) => Path.Combine(path1, path2);
+        public void RemoveFile(string path) => File.Delete(path);
+        public void OpenDirectory(string path) => Process.Start("explorer.exe", path);
     }
 
     public class AeFinderOptions
@@ -32,14 +47,46 @@ namespace PluginManager
         public string ProgramFilesAdobeRoot { get; set; } = "C:\\Program Files\\Adobe";
         public string AeDirSearchPattern { get; set; } = "Adobe After Effects*";
         public string AeVersionRegexPattern { get; set; } = @"^Adobe After Effects \d{4}$";
-        public string CommonPluginsRelativePath { get; set; } = Path.Combine("Common", "Plug-ins", "7.0", "MediaCore");
+        public string CommonPluginsRelativePath { get; set; } = Path.Combine("C:\\Program Files\\Adobe", "Common", "Plug-ins", "7.0", "MediaCore");
         public string FfxFilePattern { get; set; } = "*.ffx";
     }
 
+    sealed class PluginRegistry
+    {
+        private readonly List<Plugin> _plugins;
+        public int Count => _plugins.Count;
+
+        PluginRegistry(Plugin plugin)
+        {
+            _plugins = new List<Plugin>();
+        }
+
+        public void AddPlugin(Plugin plugin)
+        {
+            if (plugin == null)
+            {
+                throw new ArgumentNullException(nameof(plugin));
+            }
+            _plugins.Add(plugin);
+        }
+
+        public void RemovePlugin(Plugin plugin)
+        {
+            if (plugin == null)
+            {
+                throw new ArgumentNullException(nameof(plugin));
+            }
+            _plugins.Remove(plugin);
+        }
+
+        public IReadOnlyCollection<Plugin> GetPlugins()
+        {
+            return _plugins.AsReadOnly();
+        }
+    }
+    
     sealed class Plugin
     {
-        private static int _count = 0;
-        public static int Count => _count;
         public string Name { get; }
         public string Description { get; }
         public string Path { get; }
@@ -51,7 +98,6 @@ namespace PluginManager
             Path = path ?? throw new ArgumentNullException(nameof(path));
             ImagePath = imagePath ?? throw new ArgumentNullException(nameof(imagePath));
             Description = description ?? throw new ArgumentNullException(nameof(description));
-            _count++;
         }
     }
 
