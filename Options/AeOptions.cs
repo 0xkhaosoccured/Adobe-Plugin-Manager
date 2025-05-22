@@ -10,8 +10,7 @@ public class AeFinderOptions
       public string AexFilePattern { get; set; } = "*.aex";
 
       public string[] PluginFilePatterns => new[] { FfxFilePattern, AexFilePattern };
-
-
+      
       public List<string> ExcludedFolderNames { get; set; } = new List<string>
       {
             "(AdobePSL)",
