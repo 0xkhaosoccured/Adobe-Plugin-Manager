@@ -20,3 +20,20 @@ public sealed class Plugin
             return $"Name: {Name}, Path: {Path}";
       }
 }
+
+public sealed class PluginState
+{
+      public string name { get; set; }
+      public string extension { get; set; }
+      public bool isRemoved { get; set; }
+      public string _path { get; set; }
+
+      public PluginState() { }
+      public PluginState(string name, string extension, bool isRemoved, string path)
+      {
+            this.name = Path.GetFileNameWithoutExtension(name) ?? throw new ArgumentNullException(nameof(name));
+            this.extension = extension ?? throw new ArgumentNullException(nameof(extension));
+            this.isRemoved = isRemoved;
+            this._path = path ?? throw new ArgumentNullException(nameof(path));
+      }
+}
