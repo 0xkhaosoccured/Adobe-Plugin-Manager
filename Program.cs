@@ -1,52 +1,58 @@
-﻿using System;
+﻿using PluginManager;
+using System;
 using System.Collections.Generic;
-using System.Linq;
-using PluginManager;
+using System.IO;
 
-
-class Program
+public class Program
 {
-      static void Main(string[] args)
-      {
-            FolderFinder folderFinder = new FolderFinder();
+    static void Main(string[] args)
+    {
+        IFileSystem fileSystem = new DefaultFileSystem();
+        INotificationSystem notifier = new NotificationSystem();
+        AeFinderOptions options = new AeFinderOptions();
 
-            Console.WriteLine("Starting plugin categorization...");
+        PluginStateManager pluginStateManager = new PluginStateManager("plugins_state.json", fileSystem, notifier);
 
-            try
+        Dictionary<string, PluginState> currentPluginsState = pluginStateManager.LoadState();
+
+        FolderFinder folderFinder = new FolderFinder(fileSystem, options, notifier);
+        List<Plugin> discoveredPlugins = folderFinder.FindAllPlugins();
+
+        foreach (var discoveredPlugin in discoveredPlugins)
+        {
+            if (!currentPluginsState.ContainsKey(discoveredPlugin.Name))
             {
-                  Dictionary<string, List<Plugin>> categories = folderFinder.CategorizePlugins();
-
-                  Console.WriteLine("\n--- Founded categories and plugins ---");
-
-                  if (categories != null && categories.Any())
-                  {
-                        foreach (var category in categories)
-                        {
-                              Console.WriteLine($"Category: {category.Key} ({category.Value.Count} plugins)");
-                              if (category.Value.Any())
-                              {
-                                    foreach (var plugin in category.Value)
-                                    {
-                                          Console.WriteLine($"  - {plugin.Name} ({plugin.Path})");
-                                    }
-                              }
-                              else
-                              {
-                                    Console.WriteLine("  (No plugins in this category)");
-                              }
-                              Console.WriteLine();
-                        }
-                  }
-                  else
-                  {
-                        Console.WriteLine("No categories or plugins were found.");
-                  }
+                currentPluginsState.Add(discoveredPlugin.Name, new PluginState(
+                    discoveredPlugin.Name,
+                    Path.GetExtension(discoveredPlugin.Path),
+                    false,
+                    discoveredPlugin.Path
+                ));
+                notifier.Message($"New plugin discovered and added to state: {discoveredPlugin.Name}");
             }
-            catch (Exception ex)
+            else
             {
-                  Console.WriteLine($"An unexpected error occurred: {ex.Message}");
+                if (currentPluginsState[discoveredPlugin.Name].isRemoved)
+                {
+                    if (!discoveredPlugin.Path.EndsWith(".removed", StringComparison.OrdinalIgnoreCase))
+                    {
+                        notifier.Message($"Warning: Plugin '{discoveredPlugin.Name}' is marked as disabled, but the file '{discoveredPlugin.Path}' does not have a '.removed' extension.");
+                    }
+                }
+                else
+                {
+                     if (discoveredPlugin.Path.EndsWith(".removed", StringComparison.OrdinalIgnoreCase))
+                     {
+                         notifier.Message($"Warning: Plugin '{discoveredPlugin.Name}' is marked as enabled, but the file '{discoveredPlugin.Path}' has a '.removed' extension.");
+                     }
+                }
+                currentPluginsState[discoveredPlugin.Name]._path = discoveredPlugin.Path;
             }
+        }
+        
+        pluginStateManager.SaveState();
 
-            Console.WriteLine("--- Categorization process finished ---");
-      }
+        Console.WriteLine("Program execution completed.");
+        Console.ReadLine();
+    }
 }
